@@ -12,8 +12,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('payments', function (Blueprint $table) {
-            $table->id();
-            $table->timestamps();
+$table->string('id')->primary();
+$table->string('order_id');
+$table->string('xendit_invoice_id')->nullable();
+$table->string('xendit_external_id')->nullable();
+$table->string('payment_method')->nullable();
+$table->decimal('amount', 12, 2);
+$table->string('status');
+$table->timestamp('paid_at')->nullable();
+$table->timestamps();
         });
     }
 
