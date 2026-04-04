@@ -14,16 +14,29 @@ use Illuminate\Notifications\Notifiable;
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
-    protected static function boot()
-{
-    parent::boot();
 
-    static::creating(function ($model) {
-        if (!$model->id) {
-            $model->id = (string) \Str::uuid();
-        }
-    });
-}
+    public function carts()
+    {
+        return $this->hasMany(Cart::class);
+    }
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
+    }
+    public function addresses()
+    {
+        return $this->hasMany(Address::class);
+    }
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($model) {
+            if (!$model->id) {
+                $model->id = (string) \Str::uuid();
+            }
+        });
+    }
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
@@ -38,6 +51,6 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
-        
+
     }
 }
