@@ -2,18 +2,22 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Category extends Model
 {
-    protected static function boot()
-{
-    parent::boot();
+    use HasFactory, HasUuids;
 
-    static::creating(function ($model) {
-        if (!$model->id) {
-            $model->id = (string) \Str::uuid();
-        }
-    });
-}
+    protected $fillable = [
+        'name',
+        'slug',
+        'description',
+    ];
+
+    public function products()
+    {
+        return $this->hasMany(Product::class);
+    }
 }

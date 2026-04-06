@@ -2,18 +2,32 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class OrderItem extends Model
 {
-    protected static function boot()
-{
-    parent::boot();
+    use HasFactory, HasUuids;
 
-    static::creating(function ($model) {
-        if (!$model->id) {
-            $model->id = (string) \Str::uuid();
-        }
-    });
-}
+    protected $fillable = [
+        'order_id',
+        'product_id',
+        'quantity',
+        'price',
+    ];
+
+    protected $casts = [
+        'price' => 'decimal:2',
+    ];
+
+    public function order()
+    {
+        return $this->belongsTo(Order::class);
+    }
+
+    public function product()
+    {
+        return $this->belongsTo(Product::class);
+    }
 }
