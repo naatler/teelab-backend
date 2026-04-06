@@ -62,8 +62,7 @@ class PaymentController extends Controller
                 'failure_redirect_url' => env('FRONTEND_URL') . '/orders/' . $order->id . '?payment=failed',
             ];
 
-                $invoice = \Xendit\Invoice::create($params);
-
+            $invoice = \Xendit\Invoice::create($params);
             $payment = Payment::updateOrCreate(
                 ['order_id' => $order->id],
                 [
