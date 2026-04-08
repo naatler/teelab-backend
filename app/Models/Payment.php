@@ -18,6 +18,7 @@ class Payment extends Model
         'amount',
         'status',
         'paid_at',
+        'invoice_url',
     ];
 
     protected $casts = [

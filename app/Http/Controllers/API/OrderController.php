@@ -10,47 +10,58 @@ use App\Models\Discount;
 use App\Models\DiscountUsage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class OrderController extends Controller
 {
     public function index(Request $request)
     {
-        $orders = $request->user()->orders()
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return response()->json(['message' => 'Unauthenticated'], 401);
+            }
+
+            Log::info('Orders Index Request', [
+                'user_id' => $user->id,
+                'user_email' => $user->email,
+            ]);
+
+            $orders = $user->orders()
                           ->with(['items.product', 'address', 'payment'])
                           ->latest()
                           ->get();
 
-        return response()->json($orders);
+            return response()->json($orders);
+        } catch (\Exception $e) {
+            Log::error('Error fetching orders: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to fetch orders',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function store(Request $request)
     {
         $request->validate([
             'address_id' => 'required|exists:addresses,id',
-            'notes' => 'nullable|string',
+            'notes' => 'nullable|string|max:1000',
             'discount_code' => 'nullable|string',
         ]);
 
         $cart = Cart::where('user_id', $request->user()->id)
                     ->with('items.product')
-                    ->first();
+                    ->firstOrFail();
 
-        if (!$cart || $cart->items->isEmpty()) {
+        if ($cart->items->count() === 0) {
             return response()->json(['message' => 'Cart is empty'], 400);
         }
 
-        // Validate stock
-        foreach ($cart->items as $item) {
-            if ($item->product->stock < $item->quantity) {
-                return response()->json([
-                    'message' => "Insufficient stock for {$item->product->name}"
-                ], 400);
-            }
-        }
-
-        // Calculate total
-        $totalAmount = $cart->items->reduce(function($carry, $item) {
-            return $carry + ($item->product->price * $item->quantity);
+        $totalAmount = $cart->items->reduce(function ($sum, $item) {
+            return $sum + ((float) $item->product->price * $item->quantity);
         }, 0);
 
         // Validate and calculate discount
@@ -121,18 +132,35 @@ class OrderController extends Controller
             $discount->increment('used_count');
         }
 
-        $order->load(['items.product', 'address', 'discount']);
+        $order->load(['items.product', 'address', 'discount', 'payment']);
 
-        return response()->json($order, 201);
+        return response()->json([
+            'id' => $order->id,
+            'order' => $order,
+            'message' => 'Order created successfully. Create invoice to proceed with payment.'
+        ], 201);
     }
 
     public function show(Request $request, Order $order)
     {
+        // Debug logging
+        Log::info('Order Show Request', [
+            'order_id' => $order->id,
+            'order_user_id' => $order->user_id,
+            'request_user_id' => $request->user()?->id,
+        ]);
+
         if ($order->user_id !== $request->user()->id) {
+            Log::warning('Unauthorized order access attempt', [
+                'order_id' => $order->id,
+                'order_user_id' => $order->user_id,
+                'request_user_id' => $request->user()?->id,
+            ]);
+            
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $order->load(['items.product', 'address', 'payment']);
+        $order->load(['items.product', 'address', 'payment', 'user']);
 
         return response()->json($order);
     }

@@ -13,7 +13,6 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // Create Admin User
         User::create([
             'id' => Str::uuid(),
             'name' => 'Admin User',
@@ -23,7 +22,6 @@ class DatabaseSeeder extends Seeder
             'role' => 'admin',
         ]);
 
-        // Create Regular User
         User::create([
             'id' => Str::uuid(),
             'name' => 'Test User',
@@ -33,7 +31,6 @@ class DatabaseSeeder extends Seeder
             'role' => 'user',
         ]);
 
-        // Create Categories
         $electronics = Category::create([
             'id' => Str::uuid(),
             'name' => 'Electronics',
@@ -62,7 +59,6 @@ class DatabaseSeeder extends Seeder
             'description' => 'Books and magazines',
         ]);
 
-        // Create Sample Products
         $products = [
             [
                 'category_id' => $sports->id,
