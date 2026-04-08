@@ -171,4 +171,45 @@ class OrderController extends Controller
 
         return response()->json($order);
     }
+
+    // Admin endpoints
+    public function adminIndex(Request $request)
+    {
+        $query = Order::with(['user', 'items.product', 'address', 'payment'])
+                      ->latest();
+
+        if ($request->has('status') && $request->status) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->whereHas('user', function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        $orders = $query->paginate(20);
+
+        return response()->json($orders);
+    }
+
+    public function adminShow(Order $order)
+    {
+        $order->load(['user', 'items.product', 'address', 'payment', 'discount']);
+
+        return response()->json($order);
+    }
+
+    public function adminUpdateStatus(Request $request, Order $order)
+    {
+        $request->validate([
+            'status' => 'required|in:pending,processing,shipped,delivered,cancelled',
+        ]);
+
+        $order->update(['status' => $request->status]);
+
+        return response()->json($order);
+    }
 }

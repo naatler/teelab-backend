@@ -80,7 +80,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/products/{product}', [ProductController::class, 'destroy']);
 
         // Orders (admin)
-        Route::patch('/orders/{order}/status', [OrderController::class, 'updateStatus']);
+        Route::get('/orders', [OrderController::class, 'adminIndex']);
+        Route::get('/orders/{order}', [OrderController::class, 'adminShow']);
+        Route::patch('/orders/{order}/status', [OrderController::class, 'adminUpdateStatus']);
         Route::middleware(['auth:sanctum', 'admin'])->group(function () {
             Route::post('/products', [ProductController::class, 'store']);
         });

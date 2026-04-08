@@ -11,7 +11,13 @@ class ProductController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Product::with('category')->where('is_active', true);
+        $query = Product::with('category');
+
+        if ($request->has('all') && $request->all === 'true') {
+            // Admin view - include inactive products
+        } else {
+            $query->where('is_active', true);
+        }
 
         if ($request->has('category_id')) {
             $query->where('category_id', $request->category_id);
