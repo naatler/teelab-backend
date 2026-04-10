@@ -99,7 +99,7 @@ class OrderController extends Controller
                 'total_amount' => $totalAmount,
                 'discount_amount' => $discountAmount,
                 'notes' => $request->notes,
-                'status' => 'pending',
+                'status' => 'paid',
             ]);
 
             foreach ($cart->items as $item) {

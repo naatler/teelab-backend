@@ -2,88 +2,26 @@
 
 namespace App\Http\Controllers\API;
 
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 
 class ProductController extends Controller
 {
-    public function index(Request $request)
+    public function index()
     {
-        $query = Product::with('category');
-
-        if ($request->has('all') && $request->all === 'true') {
-            // Admin view - include inactive products
-        } else {
-            $query->where('is_active', true);
-        }
-
-        if ($request->has('category_id')) {
-            $query->where('category_id', $request->category_id);
-        }
-
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
-            });
-        }
-
-        $products = $query->latest()->get();
-
-        return response()->json($products);
+        return Product::where('is_active', true)->with('category')->get();
     }
-
     public function store(Request $request)
     {
-        \Log::info('Product store request:', $request->all());
-        
-        $request->validate([
-            'category_id' => 'required|exists:categories,id',
-            'name' => 'required|string|max:255',
-            'slug' => 'required|string|unique:products',
-            'description' => 'nullable|string',
-            'price' => 'required|numeric|min:0',
-            'stock' => 'required|integer|min:0',
-            'image_url' => 'nullable|string',
+        return Product::create([
+            'category_id' => $request->category_id,
+            'name' => $request->name,
+            'slug' => \Str::slug($request->name),
+            'price' => $request->price,
+            'stock' => $request->stock,
+            'image_url' => $request->image_url
         ]);
-
-        $product = Product::create($request->all());
-        $product->load('category');
-
-        return response()->json($product, 201);
-    }
-
-    public function show(Product $product)
-    {
-        $product->load('category');
-        return response()->json($product);
-    }
-
-    public function update(Request $request, Product $product)
-    {
-        $request->validate([
-            'category_id' => 'sometimes|required|exists:categories,id',
-            'name' => 'sometimes|required|string|max:255',
-            'slug' => 'sometimes|required|string|unique:products,slug,' . $product->id,
-            'description' => 'nullable|string',
-            'price' => 'sometimes|required|numeric|min:0',
-            'stock' => 'sometimes|required|integer|min:0',
-            'image_url' => 'nullable|string',
-            'is_active' => 'sometimes|boolean',
-        ]);
-
-        $product->update($request->all());
-        $product->load('category');
-
-        return response()->json($product);
-    }
-
-    public function destroy(Product $product)
-    {
-        $product->delete();
-        return response()->json(['message' => 'Product deleted successfully']);
     }
 }

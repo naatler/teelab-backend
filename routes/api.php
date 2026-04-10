@@ -11,6 +11,7 @@ use App\Http\Controllers\API\{
     PaymentController,
     UploadController,
     DiscountController, 
+    ReviewController,
 };
 /*
 |--------------------------------------------------------------------------
@@ -34,6 +35,14 @@ Route::get('/categories/{category}', [CategoryController::class, 'show']);
 Route::get('/products', [ProductController::class, 'index']);
 Route::get('/products/{product}', [ProductController::class, 'show']);
 
+// Reviews
+Route::get('/reviews', [ReviewController::class, 'index']);
+Route::get('/reviews/featured', [ReviewController::class, 'getFeaturedReviews']);
+Route::get('/products/{product}/reviews', [ReviewController::class, 'getProductReviews']);
+
+// Cart (public - returns empty cart for guest users)
+Route::get('/cart/guest', [CartController::class, 'guestIndex']);
+
 /*
 |--------------------------------------------------------------------------
 | PROTECTED ROUTES (AUTH)
@@ -48,18 +57,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
     });
 
-    // Addresses
-    Route::apiResource('addresses', AddressController::class);
-    Route::patch('/addresses/{address}/set-default', [AddressController::class, 'setDefault']);
-
-    // Cart
+    // Cart (authenticated actions)
     Route::prefix('cart')->group(function () {
         Route::get('/', [CartController::class, 'index']);
-        Route::post('/items', [CartController::class, 'addItem']);
+        Route::post('/items', [CartController::class, 'add']);
         Route::patch('/items/{cartItem}', [CartController::class, 'updateItem']);
         Route::delete('/items/{cartItem}', [CartController::class, 'removeItem']);
         Route::delete('/', [CartController::class, 'clear']);
     });
+
+    // Addresses
+    Route::apiResource('addresses', AddressController::class);
+    Route::patch('/addresses/{address}/set-default', [AddressController::class, 'setDefault']);
 
     // Orders
     Route::apiResource('orders', OrderController::class)->only(['index', 'store', 'show']);
@@ -85,6 +94,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/record', [DiscountController::class, 'recordUsage']);
     });
 
+    // Reviews
+    Route::post('/reviews', [ReviewController::class, 'store']);
+    Route::put('/reviews/{review}', [ReviewController::class, 'update']);
+    Route::delete('/reviews/{review}', [ReviewController::class, 'destroy']);
+    Route::get('/reviews/purchased', [ReviewController::class, 'getPurchasedProducts']);
+
     /*
     |--------------------------------------------------------------------------
     | ADMIN ROUTES
@@ -98,11 +113,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
 
         // Products
+        Route::get('/products', [ProductController::class, 'index']);
         Route::post('/products', [ProductController::class, 'store']);
         Route::patch('/products/{product}', [ProductController::class, 'update']);
         Route::delete('/products/{product}', [ProductController::class, 'destroy']);
 
-        // Orders
+    // Orders
         Route::get('/orders', [OrderController::class, 'adminIndex']);
         Route::get('/orders/{order}', [OrderController::class, 'adminShow']);
         Route::patch('/orders/{order}/status', [OrderController::class, 'adminUpdateStatus']);

@@ -22,11 +22,10 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        if ($order->status !== 'pending') {
-            return response()->json(['message' => 'Order is not pending'], 400);
+        if ($order->status !== 'paid') {
+            return response()->json(['message' => 'Order is not paid'], 400);
         }
 
-        // 🔍 CEK PAYMENT
         $existingPayment = Payment::where('order_id', $order->id)->first();
         if ($existingPayment && $existingPayment->status === 'paid') {
             return response()->json(['message' => 'Order already paid'], 400);
@@ -37,10 +36,9 @@ class PaymentController extends Controller
         $amount = $order->total_amount - ($order->discount_amount ?? 0);
 
         try {
-            // 🔥 CALL XENDIT API (NO SDK)
             $response = Http::withBasicAuth($this->xenditKey(), '')
                 ->withOptions([
-                    'verify' => false, // For local development only
+                    'verify' => false,
                 ])
                 ->post('https://api.xendit.co/v2/invoices', [
                     'external_id' => $externalId,
@@ -51,7 +49,6 @@ class PaymentController extends Controller
                     'failure_redirect_url' => $frontendUrl . '/orders/' . $order->id . '?payment=failed',
                 ]);
 
-            // ❌ HANDLE ERROR
             if (!$response->successful()) {
                 Log::error('Xendit Error', [
                     'body' => $response->body()
@@ -65,14 +62,13 @@ class PaymentController extends Controller
 
             $data = $response->json();
 
-            // 💾 SIMPAN PAYMENT
             $payment = Payment::updateOrCreate(
                 ['order_id' => $order->id],
                 [
                     'xendit_invoice_id' => $data['id'],
                     'xendit_external_id' => $externalId,
                     'amount' => $order->total_amount,
-                    'status' => 'pending',
+                    'status' => 'paid',
                     'invoice_url' => $data['invoice_url'] ?? null,
                 ]
             );
@@ -108,9 +104,12 @@ class PaymentController extends Controller
         $externalId = $request->external_id;
         $status = $request->status;
 
-        $payment = Payment::where('xendit_external_id', $externalId)->first();
+        $payment = Payment::where('xendit_external_id', $externalId)
+            ->orWhere('xendit_external_id', 'like', '%' . $externalId . '%')
+            ->first();
 
         if (!$payment) {
+            Log::warning('Payment not found for external_id', ['external_id' => $externalId]);
             return response()->json(['message' => 'Payment not found'], 404);
         }
 
@@ -119,25 +118,22 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Already processed']);
         }
 
-        if ($status === 'PAID') {
+        if (in_array($status, ['PAID', 'SETTLED'])) {
             $payment->update([
                 'status' => 'paid',
                 'paid_at' => now(),
                 'payment_method' => $request->payment_method ?? null,
             ]);
 
-            $payment->order->update([
-                'status' => 'processing'
-            ]);
-        }
-
-        if ($status === 'EXPIRED') {
-            $payment->update([
-                'status' => 'expired',
-            ]);
+            $payment->load('order');
 
             $payment->order->update([
-                'status' => 'cancelled'
+                'status' => 'paid'
+            ]);
+
+            Log::info('Payment berhasil', [
+                'order_id' => $payment->order_id,
+                'external_id' => $externalId,
             ]);
         }
 

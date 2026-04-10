@@ -2,119 +2,152 @@
 
 namespace App\Http\Controllers\API;
 
+use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Models\Cart;
 use App\Models\CartItem;
-use App\Models\Product;
-use Illuminate\Http\Request;
 
 class CartController extends Controller
 {
-    private function getUserId(Request $request): string
-    {
-        return (string) $request->user()->id;
-    }
-
-    public function index(Request $request)
-    {
-        $userId = $this->getUserId($request);
-        $cart = Cart::firstOrCreate(['user_id' => $userId]);
-        $cart->load(['items.product.category']);
-
-        return response()->json($cart);
-    }
-
-    public function addItem(Request $request)
+    public function add(Request $request)
     {
         $request->validate([
-            'product_id' => 'required|exists:products,id',
-            'quantity' => 'required|integer|min:1',
+            'product_id' => 'required|uuid',
+            'quantity' => 'nullable|integer|min:1'
         ]);
 
-        $product = Product::findOrFail($request->product_id);
-
-        if (!$product->is_active) {
-            return response()->json(['message' => 'Product is not available'], 400);
+        // Use $request->user() for API authentication
+        $user = $request->user();
+        
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        if ($product->stock < $request->quantity) {
-            return response()->json(['message' => 'Insufficient stock'], 400);
+        $cart = Cart::firstOrCreate([
+            'user_id' => $user->id
+        ]);
+
+        $qty = $request->quantity ?? 1;
+        
+        // Check if product exists
+        $product = \App\Models\Product::find($request->product_id);
+        if (!$product) {
+            return response()->json(['message' => 'Product not found'], 404);
         }
 
-        $userId = $this->getUserId($request);
-        $cart = Cart::firstOrCreate(['user_id' => $userId]);
+        $item = CartItem::where([
+            'cart_id' => $cart->id,
+            'product_id' => $request->product_id
+        ])->first();
 
-        $cartItem = CartItem::where('cart_id', $cart->id)
-                            ->where('product_id', $request->product_id)
-                            ->first();
-
-        if ($cartItem) {
-            $newQuantity = $cartItem->quantity + $request->quantity;
-            
-            if ($product->stock < $newQuantity) {
-                return response()->json(['message' => 'Insufficient stock'], 400);
-            }
-
-            $cartItem->update(['quantity' => $newQuantity]);
+        if ($item) {
+            $item->increment('quantity', $qty);
         } else {
-            $cartItem = CartItem::create([
+            CartItem::create([
                 'cart_id' => $cart->id,
                 'product_id' => $request->product_id,
-                'quantity' => $request->quantity,
+                'quantity' => $qty
             ]);
         }
 
-        $cartItem->load('product');
-
-        return response()->json($cartItem, 201);
+        return response()->json(['message' => 'added', 'cart' => $cart->fresh()->load('items.product')]);
     }
-
+    public function index(Request $request)
+    {
+        // Use $request->user() for API authentication
+        $user = $request->user();
+        
+        // Return empty cart structure for guest users
+        if (!$user) {
+            return response()->json([
+                'id' => null,
+                'items' => []
+            ]);
+        }
+        
+        $cart = $user->carts()->with('items.product')->latest()->first();
+        
+        // Always return proper structure even if cart is null
+        if (!$cart) {
+            return response()->json([
+                'id' => null,
+                'items' => []
+            ]);
+        }
+        
+        return response()->json($cart);
+    }
+    
+    public function guestIndex()
+    {
+        // Public endpoint for guest users
+        return response()->json([
+            'id' => null,
+            'items' => []
+        ]);
+    }
+    
     public function updateItem(Request $request, CartItem $cartItem)
     {
-        $userId = $this->getUserId($request);
-        if ($cartItem->cart->user_id !== $userId) {
+        $request->validate([
+            'quantity' => 'required|integer|min:0'
+        ]);
+        
+        $user = $request->user();
+        
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+        
+        // Verify the item belongs to the user's cart
+        if ($cartItem->cart->user_id !== $user->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-
-        $request->validate([
-            'quantity' => 'required|integer|min:0',
-        ]);
-
-        if ($request->quantity == 0) {
+        
+        if ($request->quantity === 0) {
             $cartItem->delete();
-            return response()->json(['message' => 'Item removed from cart']);
+            return response()->json(['message' => 'Item removed']);
         }
-
-        if ($cartItem->product->stock < $request->quantity) {
-            return response()->json(['message' => 'Insufficient stock'], 400);
-        }
-
-        $cartItem->update(['quantity' => $request->quantity]);
-        $cartItem->load('product');
-
-        return response()->json($cartItem);
+        
+        $cartItem->update([
+            'quantity' => $request->quantity
+        ]);
+        
+        return response()->json(['message' => 'Quantity updated', 'item' => $cartItem]);
     }
-
+    
     public function removeItem(Request $request, CartItem $cartItem)
     {
-        $userId = $this->getUserId($request);
-        if ($cartItem->cart->user_id !== $userId) {
+        $user = $request->user();
+        
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+        
+        // Verify the item belongs to the user's cart
+        if ($cartItem->cart->user_id !== $user->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-
+        
         $cartItem->delete();
-        return response()->json(['message' => 'Item removed from cart']);
+        
+        return response()->json(['message' => 'Item removed']);
     }
-
+    
     public function clear(Request $request)
     {
-        $userId = $this->getUserId($request);
-        $cart = Cart::where('user_id', $userId)->first();
+        $user = $request->user();
+        
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+        
+        $cart = $user->carts()->latest()->first();
         
         if ($cart) {
             $cart->items()->delete();
         }
-
+        
         return response()->json(['message' => 'Cart cleared']);
     }
 }

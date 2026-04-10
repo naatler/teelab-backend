@@ -26,6 +26,10 @@ class Product extends Model
         'is_active' => 'boolean',
     ];
     
+    protected $attributes = [
+        'category_id' => null,
+    ];
+    
     public function category()
     {
         return $this->belongsTo(Category::class);
@@ -39,5 +43,10 @@ class Product extends Model
     public function orderItems()
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function reviews()
+    {
+        return $this->hasMany(Review::class);
     }
 }
