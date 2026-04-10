@@ -73,19 +73,34 @@ class DiscountController extends Controller
         $code = strtoupper($request->code);
         $orderAmount = (float) $request->order_amount;
         
-        $discount = Discount::where('code', $code)->first();
+        // Case-insensitive discount lookup
+        $discount = Discount::whereRaw('UPPER(code) = ?', [$code])->first();
 
-        if (!$discount || !$discount->isValid()) {
+        if (!$discount) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid or expired discount code',
+                'message' => 'Invalid discount code: ' . $code,
             ], 400);
         }
 
-        $user = $request->user();
-        
+        if (!$discount->isValid()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Discount code is expired or inactive',
+                'debug' => [
+                    'is_active' => $discount->is_active,
+                    'starts_at' => $discount->starts_at,
+                    'expires_at' => $discount->expires_at,
+                    'used_count' => $discount->used_count,
+                    'usage_limit' => $discount->usage_limit,
+                ],
+            ], 400);
+        }
+
+        // Skip user validation for non-new-user discounts
         if ($discount->is_new_user_only) {
-            if ($discount->hasBeenUsedByUser($user->id)) {
+            $user = $request->user();
+            if ($user && $discount->hasBeenUsedByUser($user->id)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You have already used this discount',
@@ -98,7 +113,7 @@ class DiscountController extends Controller
         if ($discountAmount <= 0) {
             return response()->json([
                 'success' => false,
-                'message' => 'Minimum order amount not met',
+                'message' => 'Minimum order amount of Rp ' . number_format($discount->min_order_amount) . ' not met',
             ], 400);
         }
 
@@ -107,6 +122,7 @@ class DiscountController extends Controller
             'discount_amount' => $discountAmount,
             'final_amount' => $orderAmount - $discountAmount,
             'discount' => [
+                'id' => $discount->id,
                 'code' => $discount->code,
                 'type' => $discount->type,
                 'value' => $discount->value,

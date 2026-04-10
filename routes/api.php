@@ -43,6 +43,12 @@ Route::get('/products/{product}/reviews', [ReviewController::class, 'getProductR
 // Cart (public - returns empty cart for guest users)
 Route::get('/cart/guest', [CartController::class, 'guestIndex']);
 
+// Discounts (public - for applying discounts without full auth)
+Route::prefix('discounts')->group(function () {
+    Route::get('/', [DiscountController::class, 'getAvailableDiscounts']);
+    Route::post('/apply', [DiscountController::class, 'apply']);
+});
+
 /*
 |--------------------------------------------------------------------------
 | PROTECTED ROUTES (AUTH)
@@ -84,14 +90,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('upload')->group(function () {
         Route::post('/image', [UploadController::class, 'uploadImage']);
         Route::delete('/image', [UploadController::class, 'deleteImage']);
-    });
-
-    // Discounts
-    Route::prefix('discounts')->group(function () {
-        Route::get('/', [DiscountController::class, 'getAvailableDiscounts']);
-        Route::post('/validate', [DiscountController::class, 'validate']);
-        Route::post('/apply', [DiscountController::class, 'apply']);
-        Route::post('/record', [DiscountController::class, 'recordUsage']);
     });
 
     // Reviews
